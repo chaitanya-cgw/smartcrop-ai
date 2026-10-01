@@ -2,17 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(req: NextRequest) {
   try {
-    const { message, language = 'en' } = await req.json();
-
-    if (!message || typeof message !== 'string') {
+    const body = await req.json().catch(() => null);
+    if (!body || !body.message) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
     }
 
+    const { message, language = 'en' } = body;
     const apiKey = process.env.GROQ_API_KEY?.trim();
 
     if (!apiKey) {
+      console.error("GROQ_API_KEY is not defined in environment variables!");
       return NextResponse.json({ 
-        reply: "GROQ_API_KEY is missing in environment variables. Please configure it in .env.local and Vercel." 
+        reply: "Server configuration notice: GROQ_API_KEY is missing. Please configure it in your Vercel project environment variables." 
       }, { status: 500 });
     }
 
@@ -29,9 +30,9 @@ export async function POST(req: NextRequest) {
 Answer the farmer's question directly, accurately, and practically in ${targetLanguage}.
 Provide real, context-specific agronomy or market advice based on what was asked.
 Keep your response concise (2 to 4 sentences).
-Do not use markdown symbols like asterisks (*), hashtags (#), or bullets, so it can be read smoothly by text-to-speech.`;
+Do not use markdown symbols like asterisks (*), hashtags (#), or bullets, so it can be read smoothly by text-to-speech engines.`;
 
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -48,28 +49,28 @@ Do not use markdown symbols like asterisks (*), hashtags (#), or bullets, so it 
       })
     });
 
-    const data = await response.json();
+    const data = await groqResponse.json();
 
-    if (!response.ok || data.error) {
-      console.error("Groq API Error:", data.error || data);
+    if (!groqResponse.ok || data.error) {
+      console.error("Groq API response error:", data.error || data);
       return NextResponse.json({ 
-        reply: `Groq Error: ${data.error?.message || 'Check API key or connection'}` 
-      }, { status: 500 });
+        reply: `AI service notice: ${data.error?.message || 'Check Groq API key or rate limit'}` 
+      }, { status: groqResponse.status || 500 });
     }
 
     const reply = data.choices?.[0]?.message?.content?.trim();
 
     if (!reply) {
       return NextResponse.json({ 
-        reply: "Bhoomi AI could not process this prompt. Please try again." 
+        reply: "Bhoomi AI could not generate an answer for this prompt. Please rephrase your query." 
       }, { status: 502 });
     }
 
     return NextResponse.json({ reply });
   } catch (error: any) {
-    console.error("Bhoomi Route Error:", error);
+    console.error("Server catch in /api/bhoomi:", error);
     return NextResponse.json({ 
-      reply: `Server error: ${error.message || 'Unable to connect to Bhoomi AI'}` 
+      reply: `Connection error: ${error.message || 'Unable to reach Bhoomi AI service'}` 
     }, { status: 500 });
   }
 }
