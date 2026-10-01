@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     if (!apiKey) {
       console.error("GROQ_API_KEY is not defined in environment variables!");
       return NextResponse.json({ 
-        reply: "Server configuration notice: GROQ_API_KEY is missing. Please configure it in your Vercel project environment variables." 
+        reply: "Server configuration notice: GROQ_API_KEY is missing. Please add it to your environment variables." 
       }, { status: 500 });
     }
 
@@ -32,6 +32,7 @@ Provide real, context-specific agronomy or market advice based on what was asked
 Keep your response concise (2 to 4 sentences).
 Do not use markdown symbols like asterisks (*), hashtags (#), or bullets, so it can be read smoothly by text-to-speech engines.`;
 
+    // llama-3.1-8b-instant is globally active on all Groq tiers
     const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -39,7 +40,7 @@ Do not use markdown symbols like asterisks (*), hashtags (#), or bullets, so it 
         'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: 'llama-3.1-8b-instant',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: message }
@@ -54,7 +55,7 @@ Do not use markdown symbols like asterisks (*), hashtags (#), or bullets, so it 
     if (!groqResponse.ok || data.error) {
       console.error("Groq API response error:", data.error || data);
       return NextResponse.json({ 
-        reply: `AI service notice: ${data.error?.message || 'Check Groq API key or rate limit'}` 
+        reply: `AI service notice: ${data.error?.message || 'Check Groq API model'}` 
       }, { status: groqResponse.status || 500 });
     }
 
