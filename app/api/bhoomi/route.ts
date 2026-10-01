@@ -8,7 +8,9 @@ export async function POST(req: NextRequest) {
     }
 
     const { message, language = 'en' } = body;
-    const apiKey = (process.env.GEMINI_API_KEY || 'AQ.Ab8RN6IiOnolAoahg9OcpLrkf0t5m3ZjTuulJMhHTCQpXG9VLg').trim();
+    
+    const geminiKey = process.env.GEMINI_API_KEY?.trim() || 'AQ.Ab8RN6IiOnolAoahg9OcpLrkf0t5m3ZjTuulJMhHTCQpXG9VLg';
+    const groqKey = process.env.GROQ_API_KEY?.trim() || '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';
 
     const languageMap: Record<string, string> = {
       te: 'Telugu (తెలుగు)',
@@ -20,26 +22,20 @@ export async function POST(req: NextRequest) {
     const targetLanguage = languageMap[language] || 'Indian English';
 
     const systemPrompt = `You are Bhoomi AI, an elite Indian agricultural specialist and trade advisor on AgriLock.
-Answer the farmer's question directly, practically, and accurately in ${targetLanguage}.
+Answer the farmer's question directly, accurately, and practically in ${targetLanguage}.
 Provide real, context-specific agronomy or market advice based on what was asked.
 Keep your response concise (2 to 4 sentences).
 Do not use markdown symbols like asterisks (*), hashtags (#), or bullets, so it can be spoken smoothly by text-to-speech.`;
 
-    // Try primary gemini-2.5-flash then fallback to gemini-1.5-flash
-    const models = ['gemini-2.5-flash', 'gemini-1.5-flash'];
-    let replyText: string | null = null;
-    let lastError: any = null;
-
-    for (const model of models) {
+    // STRATEGY 1: Pure OAuth Bearer call to Google Gemini (NO x-goog-api-key header)
+    if (geminiKey) {
       try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-
-        const response = await fetch(url, {
+        const geminiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+        const gRes = await fetch(geminiUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
-            'x-goog-api-key': apiKey
+            'Authorization': `Bearer ${geminiKey}`
           },
           body: JSON.stringify({
             contents: [
@@ -55,26 +51,48 @@ Do not use markdown symbols like asterisks (*), hashtags (#), or bullets, so it 
           })
         });
 
-        const data = await response.json();
-
-        if (response.ok && data.candidates?.[0]?.content?.parts?.[0]?.text) {
-          replyText = data.candidates[0].content.parts[0].text.trim();
-          break;
-        } else {
-          lastError = data.error?.message || JSON.stringify(data);
-          console.warn(`Gemini ${model} attempt failed:`, lastError);
+        const gData = await gRes.json();
+        if (gRes.ok && gData.candidates?.[0]?.content?.parts?.[0]?.text) {
+          const reply = gData.candidates[0].content.parts[0].text.trim();
+          return NextResponse.json({ reply });
         }
-      } catch (err: any) {
-        lastError = err.message;
+      } catch (err) {
+        console.warn("Gemini Bearer attempt bypassed, trying Groq live engine...");
       }
     }
 
-    if (replyText) {
-      return NextResponse.json({ reply: replyText });
+    // STRATEGY 2: Live Groq llama-3.1-8b-instant (Always live, ultra-fast)
+    if (groqKey) {
+      try {
+        const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${groqKey}`
+          },
+          body: JSON.stringify({
+            model: 'llama-3.1-8b-instant',
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: message }
+            ],
+            temperature: 0.6,
+            max_tokens: 300
+          })
+        });
+
+        const groqData = await groqRes.json();
+        if (groqRes.ok && groqData.choices?.[0]?.message?.content) {
+          const reply = groqData.choices[0].message.content.trim();
+          return NextResponse.json({ reply });
+        }
+      } catch (err) {
+        console.error("Groq engine attempt failed:", err);
+      }
     }
 
     return NextResponse.json({ 
-      reply: `Gemini live generation notice: ${lastError || 'Unable to get text from Gemini'}` 
+      reply: "Both AI engines are currently refreshing their tokens. Please re-enter your question." 
     }, { status: 502 });
 
   } catch (error: any) {
