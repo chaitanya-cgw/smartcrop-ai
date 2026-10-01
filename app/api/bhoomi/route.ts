@@ -8,14 +8,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { message, language = 'en' } = body;
-    const apiKey = process.env.GROQ_API_KEY?.trim();
-
-    if (!apiKey) {
-      console.error("GROQ_API_KEY is not defined in environment variables!");
-      return NextResponse.json({ 
-        reply: "Server configuration notice: GROQ_API_KEY is missing. Please add it to your environment variables." 
-      }, { status: 500 });
-    }
+    const apiKey = (process.env.GEMINI_API_KEY || 'AQ.Ab8RN6IiOnolAoahg9OcpLrkf0t5m3ZjTuulJMhHTCQpXG9VLg').trim();
 
     const languageMap: Record<string, string> = {
       te: 'Telugu (తెలుగు)',
@@ -26,63 +19,68 @@ export async function POST(req: NextRequest) {
 
     const targetLanguage = languageMap[language] || 'Indian English';
 
-    const systemPrompt = `You are Bhoomi AI, an agronomy consultant and agricultural market advisor on the AgriLock platform.
-Answer the farmer's question directly, accurately, and practically in ${targetLanguage}.
+    const systemPrompt = `You are Bhoomi AI, an elite Indian agricultural specialist and trade advisor on AgriLock.
+Answer the farmer's question directly, practically, and accurately in ${targetLanguage}.
 Provide real, context-specific agronomy or market advice based on what was asked.
 Keep your response concise (2 to 4 sentences).
-Do not use markdown symbols like asterisks (*), hashtags (#), or bullets, so it can be read smoothly by text-to-speech engines.`;
+Do not use markdown symbols like asterisks (*), hashtags (#), or bullets, so it can be spoken smoothly by text-to-speech.`;
 
-    // Active production models on Groq
-    const activeModels = ['llama-3.1-8b-instant', 'mixtral-8x7b-32768'];
-
-    let generatedReply: string | null = null;
+    // Try primary gemini-2.5-flash then fallback to gemini-1.5-flash
+    const models = ['gemini-2.5-flash', 'gemini-1.5-flash'];
+    let replyText: string | null = null;
     let lastError: any = null;
 
-    for (const model of activeModels) {
+    for (const model of models) {
       try {
-        const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+
+        const response = await fetch(url, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`
+            'Authorization': `Bearer ${apiKey}`,
+            'x-goog-api-key': apiKey
           },
           body: JSON.stringify({
-            model,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: message }
+            contents: [
+              {
+                role: 'user',
+                parts: [{ text: `${systemPrompt}\n\nFarmer Question: ${message}` }]
+              }
             ],
-            temperature: 0.6,
-            max_tokens: 300
+            generationConfig: {
+              maxOutputTokens: 300,
+              temperature: 0.7
+            }
           })
         });
 
-        const data = await groqResponse.json();
+        const data = await response.json();
 
-        if (groqResponse.ok && data.choices?.[0]?.message?.content) {
-          generatedReply = data.choices[0].message.content.trim();
+        if (response.ok && data.candidates?.[0]?.content?.parts?.[0]?.text) {
+          replyText = data.candidates[0].content.parts[0].text.trim();
           break;
         } else {
-          lastError = data.error?.message || `Failed on model ${model}`;
-          console.warn(`Groq error on ${model}:`, lastError);
+          lastError = data.error?.message || JSON.stringify(data);
+          console.warn(`Gemini ${model} attempt failed:`, lastError);
         }
-      } catch (e: any) {
-        lastError = e.message;
+      } catch (err: any) {
+        lastError = err.message;
       }
     }
 
-    if (generatedReply) {
-      return NextResponse.json({ reply: generatedReply });
+    if (replyText) {
+      return NextResponse.json({ reply: replyText });
     }
 
     return NextResponse.json({ 
-      reply: `AI service notice: ${lastError || 'Unable to generate response from active models.'}` 
+      reply: `Gemini live generation notice: ${lastError || 'Unable to get text from Gemini'}` 
     }, { status: 502 });
 
   } catch (error: any) {
-    console.error("Server catch in /api/bhoomi:", error);
+    console.error("Bhoomi Route Error:", error);
     return NextResponse.json({ 
-      reply: `Connection error: ${error.message || 'Unable to reach Bhoomi AI service'}` 
+      reply: `Connection error: ${error.message || 'Unable to reach Bhoomi AI'}` 
     }, { status: 500 });
   }
 }
