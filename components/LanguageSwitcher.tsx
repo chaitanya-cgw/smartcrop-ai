@@ -1,40 +1,41 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Globe } from 'lucide-react';
 
-const languages = [
-  { code: 'en', label: 'English', native: 'English' },
-  { code: 'te', label: 'Telugu', native: 'తెలుగు' },
-  { code: 'hi', label: 'Hindi', native: 'हिन्दी' },
-  { code: 'ta', label: 'Tamil', native: 'தமிழ்' },
-];
-
 export default function LanguageSwitcher() {
   const { i18n } = useTranslation();
+  const [currentLang, setCurrentLang] = useState<string>('en');
 
-  const handleLanguageChange = (code: string) => {
-    i18n.changeLanguage(code);
+  useEffect(() => {
+    const active = i18n.language || localStorage.getItem('i18nextLng') || 'en';
+    setCurrentLang(active.slice(0, 2));
+  }, [i18n.language]);
+
+  const handleLanguageChange = (lang: string) => {
+    i18n.changeLanguage(lang);
+    setCurrentLang(lang);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('app_lang', code);
+      localStorage.setItem('i18nextLng', lang);
+      localStorage.setItem('app_lang', lang);
+      // Broadcast storage event so all mounted tools update instantly
+      window.dispatchEvent(new Event('languageChange'));
     }
   };
 
   return (
-    <div className="flex items-center gap-2 bg-white/90 backdrop-blur-sm border border-emerald-200 px-3 py-1.5 rounded-full shadow-sm">
-      <Globe className="w-4 h-4 text-emerald-600 animate-pulse" />
+    <div className="flex items-center gap-1.5 bg-white border border-emerald-200 shadow-sm rounded-xl px-2.5 py-1 text-xs">
+      <Globe className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
       <select
-        value={i18n.language}
+        value={currentLang}
         onChange={(e) => handleLanguageChange(e.target.value)}
-        aria-label="Select website language"
-        className="bg-transparent text-sm font-medium text-slate-700 outline-none cursor-pointer focus:ring-0"
+        className="bg-transparent text-slate-800 font-bold outline-none cursor-pointer text-xs"
       >
-        {languages.map((lang) => (
-          <option key={lang.code} value={lang.code}>
-            {lang.native} ({lang.label})
-          </option>
-        ))}
+        <option value="en">English (EN)</option>
+        <option value="te">తెలుగు (Telugu)</option>
+        <option value="hi">हिन्दी (Hindi)</option>
+        <option value="ta">தமிழ் (Tamil)</option>
       </select>
     </div>
   );

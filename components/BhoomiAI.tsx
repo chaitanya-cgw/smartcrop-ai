@@ -3,61 +3,90 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
+  Bot, 
+  X, 
+  Send, 
   Mic, 
   MicOff, 
-  Send, 
-  X, 
   Volume2, 
   VolumeX, 
-  Sparkles, 
-  MessageSquare 
+  Sparkles,
+  ShieldCheck,
+  TrendingUp,
+  Sprout
 } from 'lucide-react';
 
 interface ChatMessage {
   id: string;
-  sender: 'user' | 'bhoomi';
+  sender: 'bhoomi' | 'user';
   text: string;
   timestamp: string;
 }
 
 export default function BhoomiAI() {
-  const { t, i18n } = useTranslation();
-  
-  // Widget Open/Close State
+  const { i18n } = useTranslation();
+  const currentLang = i18n.language || 'en';
+
   const [isOpen, setIsOpen] = useState(false);
-  const [isHovered, setIsHovered] = useState(false);
-
-  // Mouse Tracking for Animated Eyes
-  const [pupilOffset, setPupilOffset] = useState({ x: 0, y: 0 });
-  const eyeRef = useRef<HTMLDivElement>(null);
-
-  // Chat & Speech State
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [inputText, setInputText] = useState('');
+  const [inputValue, setInputValue] = useState('');
   const [isListening, setIsListening] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isSpeakingEnabled, setIsSpeakingEnabled] = useState(true);
+  const [isThinking, setIsThinking] = useState(false);
+
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const eyeRef = useRef<HTMLDivElement>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
-  // Language Code Map for Speech Recognition & Synthesis
-  const langVoiceMap: Record<string, { speech: string; voiceNamePart?: string }> = {
-    te: { speech: 'te-IN' },
-    hi: { speech: 'hi-IN' },
-    ta: { speech: 'ta-IN' },
-    en: { speech: 'en-IN' }
+  const localizedContent: Record<string, { welcome: string; prompt1: string; prompt2: string; prompt3: string }> = {
+    te: {
+      welcome: "నమస్కారం! నేను భూమి AI. పంటల సాగు, ఎరువులు, ఆకు తెగుళ్లు మరియు అగ్రిలాక్ 6 గంటల ధర లాక్ రక్షణపై నన్ను ఏదైనా అడగండి!",
+      prompt1: "మామిడి చెట్టు సాగు విధానం ఏమిటి?",
+      prompt2: "ఎరువులు మరియు NPK వాడకం ఏమిటి?",
+      prompt3: "అగ్రిలాక్ 6 గంటల ధర లాక్ ఎలా పనిచేస్తుంది?"
+    },
+    hi: {
+      welcome: "नमस्ते! मैं भूमि AI हूँ। फसल पोषण, कीट उपचार और एग्रीलॉक 6-घंटे मंडी मूल्य गारंटी के बारे में कुछ भी पूछें!",
+      prompt1: "आम की खेती और देखभाल कैसे करें?",
+      prompt2: "उर्वरक और NPK का उपयोग क्या है?",
+      prompt3: "एग्रीलॉक मूल्य लॉक कैसे काम करता है?"
+    },
+    ta: {
+      welcome: "வணக்கம்! நான் பூமி AI. பயிர் உரங்கள், பூச்சி மேலாண்மை மற்றும் அக்ரிலாக் விலை பாதுகாப்பு பற்றி எதையும் கேளுங்கள்!",
+      prompt1: "மாமரம் வளர்ப்பது எப்படி?",
+      prompt2: "உரங்கள் மற்றும் NPK பயன்பாடு என்ன?",
+      prompt3: "அக்ரிலாக் விலை பாதுகாப்பு எப்படி செயல்படுகிறது?"
+    },
+    en: {
+      welcome: "Namaste! I am Bhoomi AI, your agronomy & AgriLock trade specialist. Ask me anything about crop diseases, fertilizers, or our 6-hour transit price lock guarantee!",
+      prompt1: "How to grow healthy mango trees?",
+      prompt2: "What is the use of fertilizers and balanced NPK?",
+      prompt3: "How does the 6-hour price lock protect against mandi crashes?"
+    }
   };
 
-  // Cursor-Tracking Eye Physics
+  const currentContent = localizedContent[currentLang] || localizedContent.en;
+
+  useEffect(() => {
+    setMessages([
+      {
+        id: `m-init-${currentLang}`,
+        sender: 'bhoomi',
+        text: currentContent.welcome,
+        timestamp: 'Just now'
+      }
+    ]);
+  }, [currentLang]);
+
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!eyeRef.current) return;
       const rect = eyeRef.current.getBoundingClientRect();
-      const eyeCenterX = rect.left + rect.width / 2;
-      const eyeCenterY = rect.top + rect.height / 2;
-
-      const angle = Math.atan2(e.clientY - eyeCenterY, e.clientX - eyeCenterX);
-      const distance = Math.min(6, Math.hypot(e.clientX - eyeCenterX, e.clientY - eyeCenterY) / 30);
-
-      setPupilOffset({
+      const eyeX = rect.left + rect.width / 2;
+      const eyeY = rect.top + rect.height / 2;
+      const angle = Math.atan2(e.clientY - eyeY, e.clientX - eyeX);
+      const distance = Math.min(4, Math.hypot(e.clientX - eyeX, e.clientY - eyeY) / 25);
+      setMousePos({
         x: Math.cos(angle) * distance,
         y: Math.sin(angle) * distance
       });
@@ -67,287 +96,315 @@ export default function BhoomiAI() {
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
-  // Native Speech Synthesis (Speaks back in chosen language)
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isThinking]);
+
   const speakText = (text: string) => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    if (!isSpeakingEnabled || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
 
-    window.speechSynthesis.cancel(); // Stop any previous speech
-    const utterance = new SpeechSynthesisUtterance(text);
-    const targetLang = langVoiceMap[i18n.language]?.speech || 'en-IN';
-    utterance.lang = targetLang;
-    utterance.rate = 0.95; // Clear and measured pace for farmers
+    const cleanText = text.replace(/[*#_`]/g, '');
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
 
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
+    const langLocaleMap: Record<string, string> = {
+      te: 'te-IN',
+      hi: 'hi-IN',
+      ta: 'ta-IN',
+      en: 'en-IN'
+    };
+
+    const targetLocale = langLocaleMap[currentLang] || 'en-IN';
+    utterance.lang = targetLocale;
+
+    const voices = window.speechSynthesis.getVoices();
+    const matchingVoice = voices.find(v => v.lang === targetLocale || v.lang.startsWith(targetLocale.slice(0, 2)));
+    if (matchingVoice) utterance.voice = matchingVoice;
 
     window.speechSynthesis.speak(utterance);
   };
 
-  // Web Speech API Voice Recognition
-  const startVoiceInput = () => {
-    const SpeechRecognition =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-
+  const toggleListening = () => {
+    if (typeof window === 'undefined') return;
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      alert('Speech recognition is not supported in this browser. Please use Google Chrome or Edge.');
+      alert('Speech recognition is not supported in this browser. Please use Chrome.');
       return;
     }
 
-    const recognition = new SpeechRecognition();
-    recognition.lang = langVoiceMap[i18n.language]?.speech || 'en-IN';
-    recognition.interimResults = false;
+    if (isListening) {
+      setIsListening(false);
+      return;
+    }
 
-    recognition.onstart = () => setIsListening(true);
-    recognition.onend = () => setIsListening(false);
-    recognition.onerror = () => setIsListening(false);
+    try {
+      const recognition = new SpeechRecognition();
+      const langLocaleMap: Record<string, string> = {
+        te: 'te-IN',
+        hi: 'hi-IN',
+        ta: 'ta-IN',
+        en: 'en-IN'
+      };
+      recognition.lang = langLocaleMap[currentLang] || 'en-IN';
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
 
-    recognition.onresult = (event: any) => {
-      const speechToText = event.results[0][0].transcript;
-      if (speechToText) {
-        handleUserQuery(speechToText);
-      }
-    };
+      recognition.onstart = () => setIsListening(true);
+      recognition.onend = () => setIsListening(false);
+      recognition.onerror = () => setIsListening(false);
 
-    recognition.start();
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        if (transcript) {
+          handleSendMessage(transcript);
+        }
+      };
+
+      recognition.start();
+    } catch (err) {
+      console.error(err);
+      setIsListening(false);
+    }
   };
 
-  // Process Farmer Query & Generate Voice Response
-  const handleUserQuery = (queryText: string) => {
-    if (!queryText.trim()) return;
+  const handleSendMessage = async (textToSend?: string) => {
+    const query = textToSend || inputValue;
+    if (!query.trim()) return;
 
-    const userMsg: ChatMessage = {
-      id: `usr-${Date.now()}`,
+    const userMessage: ChatMessage = {
+      id: `u-${Date.now()}`,
       sender: 'user',
-      text: queryText,
+      text: query,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
 
-    setMessages((prev) => [...prev, userMsg]);
-    setInputText('');
+    setMessages(prev => [...prev, userMessage]);
+    setInputValue('');
+    setIsThinking(true);
 
-    // Generate responsive contextual agricultural answer
-    setTimeout(() => {
-      let reply = '';
-      const lower = queryText.toLowerCase();
+    try {
+      const res = await fetch('/api/bhoomi', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({ 
+          message: query,
+          language: currentLang 
+        })
+      });
 
-      if (i18n.language === 'te') {
-        if (lower.includes('టమాటా') || lower.includes('తెగులు')) {
-          reply = 'టమాటా ఆకులపై నల్లటి మచ్చలు కనిపిస్తే కాపర్ ఆక్సిక్లోరైడ్ 50% డబ్ల్యుపీ మందును లీటరు నీటికి 2.5 గ్రాములు కలిపి పిచికారీ చేయండి.';
-        } else if (lower.includes('మార్కెట్') || lower.includes('ధర')) {
-          reply = 'ఈరోజు బోయిన్‌పల్లి మార్కెట్లో టమాటా ధర క్వింటాలుకు ₹3,400 మరియు సోయాబీన్ ధర నిజామాబాద్ మార్కెట్లో ₹4,950 గా ఉంది.';
-        } else {
-          reply = 'నేను మీ వ్యవసాయ సహాయకుడిని. నేల రకం, విత్తనాలు లేదా పంటల మార్పిడి గురించి నన్ను అడగండి.';
-        }
-      } else if (i18n.language === 'hi') {
-        if (lower.includes('टमाटर') || lower.includes('रोग')) {
-          reply = 'टमाटर की अगेती झुलसा बीमारी के लिए कॉपर ऑक्सीक्लोराइड 50% WP का 2.5 ग्राम प्रति लीटर पानी में घोल बनाकर सुबह के समय छिड़काव करें।';
-        } else if (lower.includes('मंडी') || lower.includes('भाव')) {
-          reply = 'आज की ताजा मंडी दरों के अनुसार टमाटर ₹3,400 प्रति क्विंटल और सोयाबीन ₹4,950 प्रति क्विंटल के स्तर पर कारोबार कर रहा है।';
-        } else {
-          reply = 'नमस्ते किसान भाई! मैं भूमि AI हूँ। आप मुझसे मौसम, खाद, कीट नियंत्रण या मंडी भाव के बारे में पूछ सकते हैं।';
-        }
-      } else {
-        if (lower.includes('tomato') || lower.includes('disease') || lower.includes('spot')) {
-          reply = 'For dark target spots on tomato leaves, apply Copper Oxychloride 50% WP at 2.5 grams per liter of water. Prune infected lower branches to prevent further spore propagation.';
-        } else if (lower.includes('price') || lower.includes('mandi') || lower.includes('rate')) {
-          reply = 'Today Bowenpally Mandi tomato rate is ₹3,400 per quintal, and Nizamabad Soybean is trading at ₹4,950 per quintal.';
-        } else {
-          reply = 'Hello Farmer Partner! I am Bhoomi AI. I can assist you with dynamic crop rotation planning, soil N-P-K balances, pest cures, and live APMC market prices.';
-        }
-      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-      const botMsg: ChatMessage = {
-        id: `bot-${Date.now()}`,
+      const data = await res.json();
+      const answer = data.reply || "Could not retrieve answer. Please try again.";
+
+      const botMessage: ChatMessage = {
+        id: `b-${Date.now()}`,
         sender: 'bhoomi',
-        text: reply,
+        text: answer,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
 
-      setMessages((prev) => [...prev, botMsg]);
-      
-      // Auto voice reply as specified
-      speakText(reply);
-    }, 600);
-  };
+      setMessages(prev => [...prev, botMessage]);
+      speakText(answer);
+    } catch (err) {
+      console.error(err);
+      const fallback = currentLang === 'te' 
+        ? "సాంకేతిక సమస్య ఏర్పడింది. దయచేసి మళ్లీ ప్రయత్నించండి." 
+        : "Network issue. Please try again.";
 
-  useEffect(() => {
-    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+      const botMessage: ChatMessage = {
+        id: `b-${Date.now()}`,
+        sender: 'bhoomi',
+        text: fallback,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      setMessages(prev => [...prev, botMessage]);
+    } finally {
+      setIsThinking(false);
+    }
+  };
 
   return (
     <>
-      {/* Floating Animated Mascot Widget (Always pinned at bottom-right) */}
-      <div 
-        ref={eyeRef}
-        className="fixed bottom-6 right-6 z-50 flex items-center gap-3 select-none"
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-      >
-        {/* Hover Tooltip Speech Bubble */}
-        {isHovered && !isOpen && (
-          <div className="bg-slate-900 text-white text-xs font-bold px-3.5 py-2 rounded-2xl shadow-xl border border-slate-700 animate-in fade-in slide-in-from-right-3 duration-200 whitespace-nowrap">
-            {t('bhoomiGreeting')}
-            <div className="absolute top-1/2 -right-1 w-2 h-2 bg-slate-900 transform -translate-y-1/2 rotate-45" />
+      {/* Floating Mascot Button */}
+      <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3">
+        {!isOpen && (
+          <div 
+            onClick={() => setIsOpen(true)}
+            className="hidden sm:flex items-center gap-2 bg-white text-slate-800 text-xs font-bold px-3.5 py-2 rounded-2xl border border-emerald-200 shadow-xl cursor-pointer hover:border-emerald-500 transition"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
+            <span>Bhoomi AI ({currentLang.toUpperCase()})</span>
           </div>
         )}
 
-        {/* Mascot Circle with Cursor-Tracking Eyes */}
         <button
           onClick={() => setIsOpen(!isOpen)}
-          aria-label="Open Bhoomi AI Assistant"
-          className="relative w-16 h-16 rounded-full bg-gradient-to-br from-emerald-600 via-teal-700 to-emerald-900 p-1 shadow-2xl shadow-emerald-700/40 border-2 border-emerald-300 hover:scale-105 active:scale-95 transition-transform flex items-center justify-center cursor-pointer group"
+          aria-label="Toggle Bhoomi AI Assistant"
+          className="relative w-14 h-14 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full shadow-xl shadow-emerald-700/30 flex items-center justify-center p-2.5 transition-all border-2 border-white cursor-pointer"
         >
-          {/* Decorative agricultural leaf sprout */}
-          <div className="absolute -top-2 left-1/2 transform -translate-x-1/2 w-4 h-4 bg-emerald-400 rounded-full border border-emerald-200 shadow-sm" />
-
-          {/* Face Area with Twin Interactive Eyes */}
-          <div className="w-full h-full bg-emerald-950 rounded-full flex items-center justify-center gap-2 px-2 overflow-hidden relative">
-            
-            {/* Left Eye */}
-            <div className="w-4 h-5 bg-white rounded-full flex items-center justify-center relative shadow-inner">
+          {/* Pupil tracking */}
+          <div ref={eyeRef} className="w-full h-full relative flex items-center justify-center gap-1.5">
+            <div className="w-3.5 h-4 bg-white rounded-full relative flex items-center justify-center overflow-hidden shadow-inner">
               <div 
-                className="w-2.5 h-2.5 bg-emerald-950 rounded-full transition-transform ease-out duration-75"
-                style={{
-                  transform: `translate(${pupilOffset.x}px, ${pupilOffset.y}px)`
-                }}
-              >
-                <div className="w-1 h-1 bg-white rounded-full mt-0.5 ml-0.5" />
-              </div>
+                className="w-2 h-2 bg-emerald-950 rounded-full"
+                style={{ transform: `translate(${mousePos.x}px, ${mousePos.y}px)` }}
+              />
             </div>
-
-            {/* Right Eye */}
-            <div className="w-4 h-5 bg-white rounded-full flex items-center justify-center relative shadow-inner">
+            <div className="w-3.5 h-4 bg-white rounded-full relative flex items-center justify-center overflow-hidden shadow-inner">
               <div 
-                className="w-2.5 h-2.5 bg-emerald-950 rounded-full transition-transform ease-out duration-75"
-                style={{
-                  transform: `translate(${pupilOffset.x}px, ${pupilOffset.y}px)`
-                }}
-              >
-                <div className="w-1 h-1 bg-white rounded-full mt-0.5 ml-0.5" />
-              </div>
+                className="w-2 h-2 bg-emerald-950 rounded-full"
+                style={{ transform: `translate(${mousePos.x}px, ${mousePos.y}px)` }}
+              />
             </div>
-
-            {/* Speaking audio wave indicator ring */}
-            {isSpeaking && (
-              <span className="absolute inset-0 rounded-full border-2 border-emerald-400 animate-ping pointer-events-none" />
-            )}
           </div>
+
+          <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 border-2 border-white"></span>
+          </span>
         </button>
       </div>
 
-      {/* Slide-Up Regional Voice Chat Drawer */}
+      {/* Slide-Up White Chat Drawer */}
       {isOpen && (
-        <div className="fixed bottom-24 right-6 z-50 w-80 sm:w-96 bg-white rounded-3xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-5 duration-200">
+        <div className="fixed bottom-24 right-4 sm:right-6 z-50 w-[94vw] sm:w-[420px] h-[550px] bg-white rounded-3xl border border-emerald-100 shadow-2xl flex flex-col overflow-hidden font-sans">
           
-          {/* Header */}
-          <div className="bg-gradient-to-r from-emerald-800 to-teal-800 p-4 text-white flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-emerald-600/40 border border-emerald-400/40 flex items-center justify-center text-emerald-300">
-                <Sparkles className="w-4 h-4" />
+          {/* Green Accent Header */}
+          <div className="p-4 border-b border-emerald-100 bg-emerald-600 text-white flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-white">
+                <Bot className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-bold text-sm leading-tight">Bhoomi AI</h3>
-                <span className="text-[10px] text-emerald-300 font-semibold flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  Voice-First Regional Assistant
-                </span>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-bold">Bhoomi AI</h3>
+                  <span className="text-[10px] bg-white/20 text-white font-extrabold px-2 py-0.5 rounded-full uppercase">
+                    {currentLang} • Live
+                  </span>
+                </div>
+                <p className="text-[11px] text-emerald-100">Agronomy & AgriLock Trade Specialist</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              {isSpeaking && (
-                <button 
-                  onClick={() => window.speechSynthesis.cancel()} 
-                  title="Mute voice"
-                  className="p-1.5 rounded-lg hover:bg-emerald-700/50 text-emerald-200"
-                >
-                  <Volume2 className="w-4 h-4 animate-bounce" />
-                </button>
-              )}
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setIsSpeakingEnabled(!isSpeakingEnabled)}
+                className="p-1.5 text-emerald-100 hover:text-white rounded-lg hover:bg-white/10 transition"
+                title={isSpeakingEnabled ? 'Mute' : 'Unmute'}
+              >
+                {isSpeakingEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+              </button>
               <button
                 onClick={() => setIsOpen(false)}
-                className="p-1 rounded-lg hover:bg-white/10 text-white/80 hover:text-white"
+                className="p-1.5 text-emerald-100 hover:text-white rounded-lg hover:bg-white/10 transition"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
           </div>
 
-          {/* Conversation Message History */}
-          <div className="p-4 flex-1 h-80 overflow-y-auto space-y-3 text-xs bg-slate-50">
-            {messages.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center text-slate-400 space-y-2 p-4">
-                <MessageSquare className="w-8 h-8 text-emerald-600/40" />
-                <p className="font-medium">
-                  {t('bhoomiGreeting')}
-                </p>
-                <p className="text-[11px] text-slate-400">
-                  Tap the microphone to speak in your chosen regional language.
-                </p>
-              </div>
-            ) : (
-              messages.map((m) => (
+          {/* Suggested Chips */}
+          <div className="px-4 py-2.5 bg-emerald-50/60 border-b border-emerald-100 flex gap-2 overflow-x-auto no-scrollbar text-[11px]">
+            <button
+              onClick={() => handleSendMessage(currentContent.prompt1)}
+              className="whitespace-nowrap px-3 py-1 bg-white hover:bg-emerald-100/60 text-emerald-900 font-bold rounded-lg border border-emerald-200 transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+            >
+              <Sprout className="w-3.5 h-3.5 text-emerald-600" />
+              {currentLang === 'te' ? 'మామిడి సాగు' : 'Mango Care'}
+            </button>
+            <button
+              onClick={() => handleSendMessage(currentContent.prompt2)}
+              className="whitespace-nowrap px-3 py-1 bg-white hover:bg-emerald-100/60 text-emerald-900 font-bold rounded-lg border border-emerald-200 transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+            >
+              <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
+              {currentLang === 'te' ? 'ఎరువుల వాడకం' : 'NPK Fertilizers'}
+            </button>
+            <button
+              onClick={() => handleSendMessage(currentContent.prompt3)}
+              className="whitespace-nowrap px-3 py-1 bg-white hover:bg-emerald-100/60 text-emerald-900 font-bold rounded-lg border border-emerald-200 transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+              {currentLang === 'te' ? 'ధర లాక్ రక్షణ' : 'Price Lock'}
+            </button>
+          </div>
+
+          {/* Chat Message Stream */}
+          <div className="flex-1 p-4 overflow-y-auto space-y-3.5 text-xs leading-relaxed bg-slate-50/50">
+            {messages.map((m) => (
+              <div
+                key={m.id}
+                className={`flex flex-col ${m.sender === 'user' ? 'items-end' : 'items-start'}`}
+              >
                 <div
-                  key={m.id}
-                  className={`flex flex-col ${
-                    m.sender === 'user' ? 'items-end' : 'items-start'
+                  className={`max-w-[85%] p-3.5 rounded-2xl ${
+                    m.sender === 'user'
+                      ? 'bg-emerald-600 text-white rounded-br-none shadow-sm'
+                      : 'bg-white text-slate-800 border border-emerald-100/80 rounded-bl-none shadow-sm'
                   }`}
                 >
-                  <div
-                    className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 shadow-sm leading-relaxed ${
-                      m.sender === 'user'
-                        ? 'bg-emerald-600 text-white font-medium rounded-br-none'
-                        : 'bg-white text-slate-800 border border-slate-200 rounded-bl-none'
-                    }`}
-                  >
-                    {m.text}
-                  </div>
-                  <span className="text-[9px] text-slate-400 mt-1 px-1">
-                    {m.timestamp}
-                  </span>
+                  <p>{m.text}</p>
                 </div>
-              ))
+                {m.sender === 'bhoomi' && (
+                  <button
+                    onClick={() => speakText(m.text)}
+                    className="flex items-center gap-1 text-[10px] font-bold text-emerald-700 hover:text-emerald-800 mt-1 pl-1 cursor-pointer"
+                  >
+                    <Volume2 className="w-3 h-3" />
+                    <span>{currentLang === 'te' ? 'వినండి' : 'Listen'}</span>
+                  </button>
+                )}
+              </div>
+            ))}
+
+            {isThinking && (
+              <div className="flex items-center gap-2 text-slate-600 text-xs font-semibold bg-white p-2.5 rounded-xl border border-emerald-100 w-fit shadow-sm">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-600 animate-spin" />
+                <span>{currentLang === 'te' ? 'భూమి సమాధానం వెతుకుతోంది...' : 'Bhoomi is consulting Gemini AI...'}</span>
+              </div>
             )}
             <div ref={chatBottomRef} />
           </div>
 
-          {/* Audio Input & Text Dispatch Controls */}
-          <div className="p-3 bg-white border-t border-slate-100 flex items-center gap-2">
-            
-            {/* Native Voice Chat Microphone Button */}
+          {/* Input Bar */}
+          <form
+            onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }}
+            className="p-3 border-t border-emerald-100 bg-white flex items-center gap-2"
+          >
             <button
-              onClick={startVoiceInput}
-              disabled={isListening}
-              title="Click and speak in your language"
-              className={`p-2.5 rounded-xl transition cursor-pointer flex items-center justify-center shrink-0 ${
+              type="button"
+              onClick={toggleListening}
+              className={`p-2.5 rounded-xl transition cursor-pointer ${
                 isListening
-                  ? 'bg-red-500 text-white animate-pulse'
-                  : 'bg-emerald-100 hover:bg-emerald-200 text-emerald-800'
+                  ? 'bg-rose-600 text-white animate-pulse'
+                  : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200'
               }`}
+              title="Speak"
             >
               {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
             </button>
 
-            {/* Text Input */}
             <input
               type="text"
-              placeholder="Ask anything or speak..."
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleUserQuery(inputText)}
-              className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium outline-none focus:border-emerald-500"
+              placeholder={currentLang === 'te' ? 'పంటలు, ధర లాక్ గురించి అడగండి...' : 'Ask about crops, fertilizers, price locks...'}
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:border-emerald-600 transition"
             />
 
-            {/* Send Button */}
             <button
-              onClick={() => handleUserQuery(inputText)}
-              disabled={!inputText.trim()}
-              className="p-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-xl transition cursor-pointer shrink-0 shadow-sm"
+              type="submit"
+              disabled={!inputValue.trim()}
+              className="p-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-xl transition cursor-pointer shadow-md shadow-emerald-600/20"
             >
-              <Send className="w-3.5 h-3.5" />
+              <Send className="w-4 h-4" />
             </button>
-          </div>
+          </form>
 
         </div>
       )}
