@@ -8,7 +8,6 @@ import {
   Lock, 
   Clock, 
   FileText, 
-  QrCode, 
   ArrowUpRight, 
   ArrowDownRight, 
   MapPin, 
@@ -23,7 +22,8 @@ import {
   AlertCircle,
   TrendingUp,
   X,
-  BadgeCheck
+  BadgeCheck,
+  Navigation
 } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import { useToolTranslation } from '@/lib/useAppLanguage';
@@ -112,6 +112,7 @@ export default function MarketPricesPage() {
   ]);
 
   const [viewingReceiptDeal, setViewingReceiptDeal] = useState<DealSlip | null>(null);
+  const [trackingDeal, setTrackingDeal] = useState<DealSlip | null>(null);
   const receiptPrintRef = useRef<HTMLDivElement>(null);
 
   // Localization Dictionary
@@ -159,6 +160,7 @@ export default function MarketPricesPage() {
       escrowSecurityDesc: "Merchant has deposited advance collateral token into the APMC bank escrow account. If the buyer defaults on delivery arrival, the escrow collateral is automatically forfeited to the farmer.",
       printReceiptBtn: "Print / Save Official PDF Receipt",
       closeBtn: "Close Window",
+      trackBtn: "Track Transit",
 
       // Modal
       bookingModalTitle: "Confirm 6-Hour Price Lock Forward Contract",
@@ -210,6 +212,7 @@ export default function MarketPricesPage() {
       escrowSecurityDesc: "వ్యాపారి ముందస్తు ధరావతు మొత్తాన్ని APMC బ్యాంకు ఖాతాలో జమ చేశారు. సరుకు చేరిన తర్వాత కొనుగోలు నిరాకరిస్తే, ఆ మొత్తం రైతుకే చెందుతుంది.",
       printReceiptBtn: "రసీదును ప్రింట్ / PDF లో సేవ్ చేయండి",
       closeBtn: "విండో మూసివేయండి",
+      trackBtn: "రవాణా ట్రాక్ చేయండి",
 
       bookingModalTitle: "6-గంటల ధర లాక్ ఒప్పందాన్ని నిర్ధారించండి",
       enterQuantityLabel: "సరుకు పరిమాణం (క్వింటాళ్లలో):",
@@ -260,6 +263,7 @@ export default function MarketPricesPage() {
       escrowSecurityDesc: "व्यापारी ने अग्रिम जमानत राशि APMC बैंक खाते में जमा कर दी है। माल पहुंचने पर यदि व्यापारी खरीदने से मना करता है, तो जमानत राशि किसान को दे दी जाएगी।",
       printReceiptBtn: "रसीद प्रिंट करें / PDF सहेजें",
       closeBtn: "बंद करें",
+      trackBtn: "परिवहन ट्रैक करें",
 
       bookingModalTitle: "6-घंटे का अग्रिम मूल्य अनुबंध पक्का करें",
       enterQuantityLabel: "फसल मात्रा (क्विंटल में):",
@@ -310,6 +314,7 @@ export default function MarketPricesPage() {
       escrowSecurityDesc: "வியாபாரி தனது முன்பணத்தை வங்கி கணக்கில் செலுத்தியுள்ளார். சரக்கு வந்த பின் வாங்க மறுத்தால், அந்த முன்பணம் விவசாயிக்கு வழங்கப்படும்.",
       printReceiptBtn: "ரசீதை அச்சிடு / PDF சேமி",
       closeBtn: "மூடு",
+      trackBtn: "போக்குவரத்தை கண்காணிக்கவும்",
 
       bookingModalTitle: "6 மணி நேர விலை ஒப்பந்தத்தை உறுதிப்படுத்துக",
       enterQuantityLabel: "சரக்கு அளவு (குவிண்டாலில்):",
@@ -742,11 +747,11 @@ export default function MarketPricesPage() {
                     </button>
 
                     <button
-                      onClick={() => setViewingReceiptDeal(deal)}
-                      className="text-xs font-bold text-emerald-700 hover:text-emerald-900 flex items-center gap-1 cursor-pointer"
+                      onClick={() => setTrackingDeal(deal)}
+                      className="text-xs font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-xl flex items-center gap-1.5 cursor-pointer transition"
                     >
-                      <QrCode className="w-4 h-4" />
-                      <span>View APMC QR Slip</span>
+                      <Navigation className="w-3.5 h-3.5" />
+                      <span>{cur.trackBtn}</span>
                     </button>
                   </div>
                 </div>
@@ -902,8 +907,8 @@ export default function MarketPricesPage() {
                 </div>
 
                 <div className="text-right">
-                  <div className="w-16 h-16 bg-white border border-slate-300 rounded-xl p-1 flex items-center justify-center shadow-inner ml-auto">
-                    <QrCode className="w-14 h-14 text-slate-900" />
+                  <div className="w-16 h-16 bg-white border border-slate-300 rounded-xl p-1 flex items-center justify-center shadow-inner ml-auto font-mono font-bold text-xs text-slate-400">
+                    [QR SEAL]
                   </div>
                   <span className="font-mono font-bold text-emerald-800 block text-[11px] mt-1">
                     {viewingReceiptDeal.contractId}
@@ -1008,6 +1013,153 @@ export default function MarketPricesPage() {
                 className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow cursor-pointer"
               >
                 {cur.closeBtn}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: AMAZON-STYLE TRANSIT PROGRESSION TRACKER */}
+      {trackingDeal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-emerald-100 overflow-hidden animate-in fade-in zoom-in-95">
+            
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-emerald-800 to-teal-800 text-white p-6 flex justify-between items-start">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs font-bold bg-white/10 text-emerald-200 px-2.5 py-0.5 rounded-lg border border-white/20">
+                    {trackingDeal.contractId}
+                  </span>
+                  <span className="text-xs bg-emerald-400 text-emerald-950 font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-950 animate-pulse"></span>
+                    {trackingDeal.status}
+                  </span>
+                </div>
+                <h3 className="font-black text-lg text-white mt-2">{trackingDeal.crop}</h3>
+                <p className="text-xs text-emerald-100/90 mt-0.5">
+                  Consignment Lot: {trackingDeal.quantity} • Buyer: {trackingDeal.merchantFirm}
+                </p>
+              </div>
+              <button
+                onClick={() => setTrackingDeal(null)}
+                className="p-1.5 text-white/70 hover:text-white bg-white/10 hover:bg-white/20 rounded-full transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Price Lock Guarantee Callout */}
+            <div className="bg-emerald-50/80 border-b border-emerald-100 px-6 py-3 flex items-center justify-between text-xs">
+              <span className="font-bold text-emerald-900 flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                Guaranteed Locked Price: ₹{trackingDeal.lockedPrice}/Qtl
+              </span>
+              <span className="font-mono font-bold text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-md">
+                6-Hr Window Active
+              </span>
+            </div>
+
+            {/* Progression Stepper */}
+            <div className="p-6">
+              <div className="relative pl-6 space-y-6 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-emerald-200">
+                
+                {/* Step 1: Complete */}
+                <div className="relative">
+                  <div className="absolute -left-[30px] top-0.5 w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] font-bold ring-4 ring-white">
+                    ✓
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-slate-900">Contract Locked & Escrow Bonded</h4>
+                      <span className="text-[10px] text-slate-400 font-mono">08:30 AM</span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Forward contract confirmed. Merchant collateral ({trackingDeal.advanceDeposit}) frozen in APMC escrow.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Step 2: Complete */}
+                <div className="relative">
+                  <div className="absolute -left-[30px] top-0.5 w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] font-bold ring-4 ring-white">
+                    ✓
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-slate-900">Farm Gate Pickup & Quality Check</h4>
+                      <span className="text-[10px] text-slate-400 font-mono">09:15 AM</span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      {trackingDeal.transportDetails?.vehicleType || 'Dispatched mini-truck'} loaded at farm gate. Moisture assay passed (&lt; 12%).
+                    </p>
+                  </div>
+                </div>
+
+                {/* Step 3: Active Stage */}
+                <div className="relative">
+                  <div className="absolute -left-[30px] top-0.5 w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold ring-4 ring-blue-100 animate-pulse">
+                    ●
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
+                        Produce In Transit to APMC Yard
+                        <span className="text-[9px] font-bold bg-blue-100 text-blue-800 px-1.5 py-0.2 rounded-full">
+                          Current Stage
+                        </span>
+                      </h4>
+                      <span className="text-[10px] text-blue-600 font-semibold font-mono">In Progress</span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 mt-0.5">
+                      En route to {trackingDeal.mandiLocation}. Price lock active against spot market declines.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Step 4: Pending */}
+                <div className="relative opacity-60">
+                  <div className="absolute -left-[30px] top-0.5 w-5 h-5 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-[10px] font-bold ring-4 ring-white">
+                    4
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-semibold text-slate-700">Mandi Weighbridge Cross-Verification</h4>
+                      <span className="text-[10px] text-slate-400 font-mono">Est. 11:30 AM</span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Electronic weighbridge slip verified against digital consignment weight ({trackingDeal.quantity}).
+                    </p>
+                  </div>
+                </div>
+
+                {/* Step 5: Pending */}
+                <div className="relative opacity-60">
+                  <div className="absolute -left-[30px] top-0.5 w-5 h-5 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-[10px] font-bold ring-4 ring-white">
+                    5
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-semibold text-slate-700">Instant UPI Escrow Settlement</h4>
+                      <span className="text-[10px] text-slate-400 font-mono">Est. 12:00 PM</span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Locked payment balance (₹{trackingDeal.totalEstimatedValue.toLocaleString('en-IN')}) disbursed directly to farmer bank account.
+                    </p>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="bg-slate-50 px-6 py-3.5 border-t border-slate-100 flex justify-end">
+              <button
+                onClick={() => setTrackingDeal(null)}
+                className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition cursor-pointer"
+              >
+                Close Tracking
               </button>
             </div>
 
