@@ -26,48 +26,61 @@ export async function POST(req: NextRequest) {
 
     const targetLanguage = languageMap[language] || 'Indian English';
 
-    const systemPrompt = `You are Bhoomi AI, an agronomy consultant and agricultural market advisor on the AgriLock platform.
+    const systemPrompt = `You are Bhoomi AI, an elite agronomy consultant and agricultural market advisor on the AgriLock platform.
 Answer the farmer's question directly, accurately, and practically in ${targetLanguage}.
 Provide real, context-specific agronomy or market advice based on what was asked.
 Keep your response concise (2 to 4 sentences).
 Do not use markdown symbols like asterisks (*), hashtags (#), or bullets, so it can be read smoothly by text-to-speech engines.`;
 
-    // llama-3.1-8b-instant is globally active on all Groq tiers
-    const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: 'llama-3.1-8b-instant',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: message }
-        ],
-        temperature: 0.6,
-        max_tokens: 300
-      })
-    });
+    // Active production models on Groq's tier:
+    // 1. llama-3.1-8b-instant (Fastest, ultra-reliable)
+    // 2. llama3-70b-8192 (High intelligence backup)
+    const availableModels = ['llama-3.1-8b-instant', 'llama3-70b-8192'];
 
-    const data = await groqResponse.json();
+    let generatedReply: string | null = null;
+    let lastError: any = null;
 
-    if (!groqResponse.ok || data.error) {
-      console.error("Groq API response error:", data.error || data);
-      return NextResponse.json({ 
-        reply: `AI service notice: ${data.error?.message || 'Check Groq API model'}` 
-      }, { status: groqResponse.status || 500 });
+    for (const model of availableModels) {
+      try {
+        const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            model,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: message }
+            ],
+            temperature: 0.6,
+            max_tokens: 300
+          })
+        });
+
+        const data = await groqResponse.json();
+
+        if (groqResponse.ok && data.choices?.[0]?.message?.content) {
+          generatedReply = data.choices[0].message.content.trim();
+          break; // Successfully got response
+        } else {
+          lastError = data.error?.message || `Failed on model ${model}`;
+          console.warn(`Groq error on ${model}:`, lastError);
+        }
+      } catch (e: any) {
+        lastError = e.message;
+      }
     }
 
-    const reply = data.choices?.[0]?.message?.content?.trim();
-
-    if (!reply) {
-      return NextResponse.json({ 
-        reply: "Bhoomi AI could not generate an answer for this prompt. Please rephrase your query." 
-      }, { status: 502 });
+    if (generatedReply) {
+      return NextResponse.json({ reply: generatedReply });
     }
 
-    return NextResponse.json({ reply });
+    return NextResponse.json({ 
+      reply: `AI service notice: ${lastError || 'Unable to generate response from Groq models.'}` 
+    }, { status: 502 });
+
   } catch (error: any) {
     console.error("Server catch in /api/bhoomi:", error);
     return NextResponse.json({ 
