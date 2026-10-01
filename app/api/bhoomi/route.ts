@@ -26,21 +26,19 @@ export async function POST(req: NextRequest) {
 
     const targetLanguage = languageMap[language] || 'Indian English';
 
-    const systemPrompt = `You are Bhoomi AI, an elite agronomy consultant and agricultural market advisor on the AgriLock platform.
+    const systemPrompt = `You are Bhoomi AI, an agronomy consultant and agricultural market advisor on the AgriLock platform.
 Answer the farmer's question directly, accurately, and practically in ${targetLanguage}.
 Provide real, context-specific agronomy or market advice based on what was asked.
 Keep your response concise (2 to 4 sentences).
 Do not use markdown symbols like asterisks (*), hashtags (#), or bullets, so it can be read smoothly by text-to-speech engines.`;
 
-    // Active production models on Groq's tier:
-    // 1. llama-3.1-8b-instant (Fastest, ultra-reliable)
-    // 2. llama3-70b-8192 (High intelligence backup)
-    const availableModels = ['llama-3.1-8b-instant', 'llama3-70b-8192'];
+    // Active production models on Groq
+    const activeModels = ['llama-3.1-8b-instant', 'mixtral-8x7b-32768'];
 
     let generatedReply: string | null = null;
     let lastError: any = null;
 
-    for (const model of availableModels) {
+    for (const model of activeModels) {
       try {
         const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
           method: 'POST',
@@ -63,7 +61,7 @@ Do not use markdown symbols like asterisks (*), hashtags (#), or bullets, so it 
 
         if (groqResponse.ok && data.choices?.[0]?.message?.content) {
           generatedReply = data.choices[0].message.content.trim();
-          break; // Successfully got response
+          break;
         } else {
           lastError = data.error?.message || `Failed on model ${model}`;
           console.warn(`Groq error on ${model}:`, lastError);
@@ -78,7 +76,7 @@ Do not use markdown symbols like asterisks (*), hashtags (#), or bullets, so it 
     }
 
     return NextResponse.json({ 
-      reply: `AI service notice: ${lastError || 'Unable to generate response from Groq models.'}` 
+      reply: `AI service notice: ${lastError || 'Unable to generate response from active models.'}` 
     }, { status: 502 });
 
   } catch (error: any) {
